@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node dist/server.js",
     "build": "npx tsc",
+    "postinstall": "npx prisma generate",
     "dev": "nodemon src/server.ts",
     "seed": "ts-node src/seed.ts",
     "db:migrate": "npx prisma migrate dev",

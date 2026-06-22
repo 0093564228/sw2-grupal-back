@@ -1,0 +1,21 @@
+# Dependencias
+node_modules/
+
+# Variables de entorno (NUNCA subir al repo)
+.env
+.env.local
+.env.production
+
+# Build de TypeScript
+dist/
+
+# Prisma: cliente generado (se regenera en build)
+# node_modules/@prisma/client  ← ya cubierto por node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
