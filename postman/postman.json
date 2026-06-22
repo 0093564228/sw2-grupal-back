@@ -1,0 +1,279 @@
+{
+  "info": {
+    "name": "VET-ERP API Collection",
+    "description": "Colección completa para probar todos los módulos del backend de VET-ERP.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:4000/api",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. Autenticación",
+      "item": [
+        {
+          "name": "Login (Genera Token)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "if(jsonData.token) {",
+                  "    pm.collectionVariables.set(\"token\", jsonData.token);",
+                  "    console.log(\"Token guardado automáticamente\");",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"admin@vetcare.com\",\n    \"password\": \"admin123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Dashboard",
+      "item": [
+        {
+          "name": "Obtener KPIs",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/dashboard/kpis",
+              "host": ["{{baseUrl}}"],
+              "path": ["dashboard", "kpis"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Catálogos",
+      "item": [
+        {
+          "name": "Listar Especies",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Authorization", "value": "Bearer {{token}}" } ],
+            "url": { "raw": "{{baseUrl}}/catalogos/especies", "host": ["{{baseUrl}}"], "path": ["catalogos", "especies"] }
+          }
+        },
+        {
+          "name": "Listar Servicios",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Authorization", "value": "Bearer {{token}}" } ],
+            "url": { "raw": "{{baseUrl}}/catalogos/servicios", "host": ["{{baseUrl}}"], "path": ["catalogos", "servicios"] }
+          }
+        },
+        {
+          "name": "Listar Exámenes de Laboratorio",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Authorization", "value": "Bearer {{token}}" } ],
+            "url": { "raw": "{{baseUrl}}/catalogos/examenes", "host": ["{{baseUrl}}"], "path": ["catalogos", "examenes"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Usuarios (Personal y Clientes)",
+      "item": [
+        {
+          "name": "Listar Todos los Usuarios",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Authorization", "value": "Bearer {{token}}" } ],
+            "url": { "raw": "{{baseUrl}}/usuarios", "host": ["{{baseUrl}}"], "path": ["usuarios"] }
+          }
+        },
+        {
+          "name": "Crear Usuario",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"nombre\": \"Juan Pérez\",\n    \"email\": \"juan@cliente.com\",\n    \"password\": \"123456\",\n    \"rol_id\": \"INGRESA_UUID_DEL_ROL_AQUI\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/usuarios", "host": ["{{baseUrl}}"], "path": ["usuarios"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Mascotas",
+      "item": [
+        {
+          "name": "Listar Mascotas",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Authorization", "value": "Bearer {{token}}" } ],
+            "url": { "raw": "{{baseUrl}}/mascotas", "host": ["{{baseUrl}}"], "path": ["mascotas"] }
+          }
+        },
+        {
+          "name": "Crear Mascota",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"nombre\": \"Firulais\",\n    \"especie_id\": \"UUID_ESPECIE\",\n    \"propietario_id\": \"UUID_PROPIETARIO\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/mascotas", "host": ["{{baseUrl}}"], "path": ["mascotas"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Consultorios y Salas",
+      "item": [
+        {
+          "name": "Listar Consultorios",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Authorization", "value": "Bearer {{token}}" } ],
+            "url": { "raw": "{{baseUrl}}/consultorios", "host": ["{{baseUrl}}"], "path": ["consultorios"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Agenda de Citas",
+      "item": [
+        {
+          "name": "Listar Citas",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Authorization", "value": "Bearer {{token}}" } ],
+            "url": { "raw": "{{baseUrl}}/agenda", "host": ["{{baseUrl}}"], "path": ["agenda"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "8. Fichas Clínicas (Atenciones)",
+      "item": [
+        {
+          "name": "Listar Fichas",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Authorization", "value": "Bearer {{token}}" } ],
+            "url": { "raw": "{{baseUrl}}/fichas", "host": ["{{baseUrl}}"], "path": ["fichas"] }
+          }
+        },
+        {
+          "name": "Crear Ficha (Ingreso de paciente)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"mascota_id\": \"UUID_MASCOTA\",\n    \"servicio_id\": \"UUID_SERVICIO\",\n    \"motivo\": \"Consulta general\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/fichas", "host": ["{{baseUrl}}"], "path": ["fichas"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. Laboratorio",
+      "item": [
+        {
+          "name": "Listar Órdenes de Laboratorio",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Authorization", "value": "Bearer {{token}}" } ],
+            "url": { "raw": "{{baseUrl}}/laboratorio", "host": ["{{baseUrl}}"], "path": ["laboratorio"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "10. Inventario y Farmacia",
+      "item": [
+        {
+          "name": "Listar Productos",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Authorization", "value": "Bearer {{token}}" } ],
+            "url": { "raw": "{{baseUrl}}/productos", "host": ["{{baseUrl}}"], "path": ["productos"] }
+          }
+        },
+        {
+          "name": "Ajustar Stock",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"cantidad\": 10,\n    \"tipo\": \"INGRESO\",\n    \"motivo\": \"Compra a proveedor\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/productos/:id/stock", "host": ["{{baseUrl}}"], "path": ["productos", ":id", "stock"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "11. Caja y Cobranza",
+      "item": [
+        {
+          "name": "Listar Cuentas Pendientes",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Authorization", "value": "Bearer {{token}}" } ],
+            "url": { "raw": "{{baseUrl}}/caja/pendientes", "host": ["{{baseUrl}}"], "path": ["caja", "pendientes"] }
+          }
+        },
+        {
+          "name": "Listar Recibos Pagados",
+          "request": {
+            "method": "GET",
+            "header": [ { "key": "Authorization", "value": "Bearer {{token}}" } ],
+            "url": { "raw": "{{baseUrl}}/caja/recibos", "host": ["{{baseUrl}}"], "path": ["caja", "recibos"] }
+          }
+        }
+      ]
+    }
+  ]
+}
