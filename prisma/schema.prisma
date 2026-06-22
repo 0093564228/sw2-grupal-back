@@ -1,0 +1,471 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ===========================
+// USUARIOS Y ROLES
+// ===========================
+
+model Role {
+  id       String    @id @default(uuid())
+  nombre   String    @unique
+  permisos Json?
+  usuarios Usuario[]
+}
+
+model Usuario {
+  id            String   @id @default(uuid())
+  nombre        String
+  email         String   @unique
+  password_hash String
+  telefono      String?
+  ci            String?
+  rol_id        String
+  rol           Role     @relation(fields: [rol_id], references: [id])
+  created_at    DateTime @default(now())
+
+  debe_cambiar_password Boolean @default(false)
+  activo                Boolean @default(true)
+
+  mascotas           Mascota[]
+  fichas_como_doctor FichaAtencion[] @relation("FichaDoctorRelation")
+  fichas_creadas     FichaAtencion[] @relation("FichaCreadorRelation")
+  recibos            ReciboCaja[]
+  citas              Cita[]
+  salas_responsable  Consultorio[]   @relation("ResponsableSala")
+}
+
+// ===========================
+// CATÁLOGOS BASE
+// ===========================
+
+model Especie {
+  id       String    @id @default(uuid())
+  nombre   String    @unique
+  razas    Raza[]
+  mascotas Mascota[]
+}
+
+model Raza {
+  id         String    @id @default(uuid())
+  nombre     String
+  especie_id String
+  especie    Especie   @relation(fields: [especie_id], references: [id])
+  mascotas   Mascota[]
+
+  @@unique([nombre, especie_id])
+}
+
+model ColorMascota {
+  id          String    @id @default(uuid())
+  descripcion String    @unique
+  mascotas    Mascota[]
+}
+
+model Alergia {
+  id        String            @id @default(uuid())
+  nombre    String            @unique
+  pacientes PacienteAlergia[]
+}
+
+model CatalogoServicio {
+  id          String          @id @default(uuid())
+  nombre      String          @unique
+  precio_base Decimal
+  fichas      FichaAtencion[]
+}
+
+// ===========================
+// PACIENTES
+// ===========================
+
+model Mascota {
+  id               String        @id @default(uuid())
+  nombre           String
+  especie_id       String
+  especie          Especie       @relation(fields: [especie_id], references: [id])
+  raza_id          String?
+  raza             Raza?         @relation(fields: [raza_id], references: [id])
+  color_id         String?
+  color            ColorMascota? @relation(fields: [color_id], references: [id])
+  fecha_nacimiento DateTime?
+  sexo             String?       @db.Char(1)
+  peso_actual      Decimal?
+  esterilizado     Boolean       @default(false)
+  propietario_id   String
+  propietario      Usuario       @relation(fields: [propietario_id], references: [id])
+  created_at       DateTime      @default(now())
+
+  alergias PacienteAlergia[]
+  fichas   FichaAtencion[]
+  citas    Cita[]
+}
+
+model PacienteAlergia {
+  mascota_id String
+  alergia_id String
+  severidad  String
+  mascota    Mascota @relation(fields: [mascota_id], references: [id], onDelete: Cascade)
+  alergia    Alergia @relation(fields: [alergia_id], references: [id])
+
+  @@id([mascota_id, alergia_id])
+}
+
+// ===========================
+// CONSULTORIOS
+// ===========================
+
+model Consultorio {
+  id             String            @id @default(uuid())
+  nombre         String
+  especialidad   String?
+  tipo           TipoSala          @default(CONSULTORIO)
+  estado         ConsultorioEstado @default(LIBRE)
+  responsable_id String?
+  responsable    Usuario?          @relation("ResponsableSala", fields: [responsable_id], references: [id])
+  fichas         FichaAtencion[]
+  citas          Cita[]
+}
+
+enum TipoSala {
+  CONSULTORIO
+  LABORATORIO
+  QUIROFANO
+  SALA_ESPERA
+  OTRO
+}
+
+enum ConsultorioEstado {
+  LIBRE
+  OCUPADO
+  LIMPIEZA
+}
+
+// ===========================
+// FICHAS DE ATENCIÓN
+// ===========================
+
+model FichaAtencion {
+  id             String           @id @default(uuid())
+  cod_ficha      String           @unique
+  mascota_id     String
+  mascota        Mascota          @relation(fields: [mascota_id], references: [id])
+  doctor_id      String?
+  doctor         Usuario?         @relation("FichaDoctorRelation", fields: [doctor_id], references: [id])
+  consultorio_id String?
+  consultorio    Consultorio?     @relation(fields: [consultorio_id], references: [id])
+  servicio_id    String
+  servicio       CatalogoServicio @relation(fields: [servicio_id], references: [id])
+  creado_por_id  String?
+  creado_por     Usuario?         @relation("FichaCreadorRelation", fields: [creado_por_id], references: [id])
+  motivo         String?
+  estado         EstadoFicha      @default(ESPERA)
+  prioridad      Prioridad        @default(NORMAL)
+  estado_cobro   EstadoCobro      @default(PENDIENTE)
+  fecha_hora     DateTime         @default(now())
+
+  soap        RegistroSOAP?
+  ordenes_lab LaboratorioOrden[]
+  consumos    ConsumoConsulta[]
+  recibo      ReciboCaja?
+}
+
+model Cita {
+  id             String      @id @default(uuid())
+  mascota_id     String
+  mascota        Mascota     @relation(fields: [mascota_id], references: [id])
+  doctor_id      String?
+  doctor         Usuario?    @relation(fields: [doctor_id], references: [id])
+  consultorio_id String?
+  consultorio    Consultorio? @relation(fields: [consultorio_id], references: [id])
+  fecha_hora     DateTime
+  motivo         String
+  notas          String?
+  estado         EstadoCita  @default(PROGRAMADA)
+  created_at     DateTime    @default(now())
+}
+
+enum EstadoCita {
+  PROGRAMADA
+  CONFIRMADA
+  COMPLETADA
+  CANCELADA
+  NO_ASISTIO
+}
+
+enum EstadoFicha {
+  ESPERA
+  EN_CURSO
+  COMPLETADA
+  CANCELADA
+}
+
+enum Prioridad {
+  URGENTE
+  NORMAL
+}
+
+enum EstadoCobro {
+  PENDIENTE
+  PAGADO
+  EXENTO
+}
+
+// ===========================
+// REGISTRO SOAP
+// ===========================
+
+model RegistroSOAP {
+  id             String        @id @default(uuid())
+  ficha_id       String        @unique
+  ficha          FichaAtencion @relation(fields: [ficha_id], references: [id], onDelete: Cascade)
+  motivo_detalle String?
+  anamnesis      String?
+  peso           Decimal?
+  temperatura    Decimal?
+  fc             Int?
+  fr             Int?
+  hallazgos      String?
+  diagnostico    String?
+  tratamiento    String?
+  created_at     DateTime      @default(now())
+
+  receta RecetaMedica?
+}
+
+// ===========================
+// FARMACIA
+// ===========================
+
+model CategoriaProducto {
+  id        String       @id @default(uuid())
+  nombre    String       @unique
+  tipo_item TipoProducto @default(MEDICAMENTO)
+  productos Producto[]
+}
+
+enum TipoProducto {
+  MEDICAMENTO
+  INSUMO_MEDICO
+  VACUNA
+  ALIMENTO
+}
+
+model Producto {
+  id           String             @id @default(uuid())
+  nombre       String
+  descripcion  String?
+  categoria_id String?
+  categoria    CategoriaProducto? @relation(fields: [categoria_id], references: [id])
+  precio_venta Decimal
+  stock_actual Int                @default(0)
+  stock_minimo Int                @default(5)
+
+  detalles_receta DetalleReceta[]
+  kardex          KardexMovimiento[]
+  detalles_cobro  DetalleCobro[]
+  consumos        ConsumoConsulta[]
+}
+
+// ===========================
+// CONSUMOS EN CONSULTA
+// ===========================
+
+model ConsumoConsulta {
+  id          String        @id @default(uuid())
+  ficha_id    String
+  ficha       FichaAtencion @relation(fields: [ficha_id], references: [id], onDelete: Cascade)
+  producto_id String
+  producto    Producto      @relation(fields: [producto_id], references: [id])
+  cantidad    Int
+  created_at  DateTime      @default(now())
+}
+
+model RecetaMedica {
+  id              String          @id @default(uuid())
+  soap_id         String          @unique
+  soap            RegistroSOAP    @relation(fields: [soap_id], references: [id], onDelete: Cascade)
+  indicaciones    String?
+  estado_entrega  EntregaReceta   @default(PENDIENTE)
+  created_at      DateTime        @default(now())
+
+  detalles DetalleReceta[]
+}
+
+enum EntregaReceta {
+  PENDIENTE
+  ENTREGADO
+  PARCIAL
+}
+
+model DetalleReceta {
+  id            String       @id @default(uuid())
+  receta_id     String
+  receta        RecetaMedica @relation(fields: [receta_id], references: [id], onDelete: Cascade)
+  producto_id   String
+  producto      Producto     @relation(fields: [producto_id], references: [id])
+  cantidad      Int
+  instrucciones String?
+}
+
+// ===========================
+// PROVEEDORES Y STOCK
+// ===========================
+
+model Proveedor {
+  id             String            @id @default(uuid())
+  nombre_empresa String
+  nit            String?
+  contacto       String?
+  telefono       String?
+  compras        CompraProveedor[]
+}
+
+model CompraProveedor {
+  id           String             @id @default(uuid())
+  proveedor_id String
+  proveedor    Proveedor          @relation(fields: [proveedor_id], references: [id])
+  fecha        DateTime           @default(now())
+  monto_total  Decimal
+  estado       EstadoCompra       @default(EN_TRANSITO)
+  notas        String?
+  movimientos  KardexMovimiento[]
+}
+
+enum EstadoCompra {
+  EN_TRANSITO
+  COMPLETADA
+  CANCELADA
+}
+
+model KardexMovimiento {
+  id          String           @id @default(uuid())
+  producto_id String
+  producto    Producto         @relation(fields: [producto_id], references: [id])
+  tipo        TipoMovimiento
+  cantidad    Int
+  saldo_final Int
+  motivo      String?
+  compra_id   String?
+  compra      CompraProveedor? @relation(fields: [compra_id], references: [id])
+  created_at  DateTime         @default(now())
+}
+
+enum TipoMovimiento {
+  INGRESO
+  SALIDA
+}
+
+// ===========================
+// LABORATORIO
+// ===========================
+
+model CatalogoExamen {
+  id           String             @id @default(uuid())
+  nombre       String             @unique
+  tipo_muestra String?
+  precio       Decimal
+  ordenes      LaboratorioOrden[]
+}
+
+model LaboratorioOrden {
+  id         String         @id @default(uuid())
+  cod_orden  String         @unique
+  ficha_id   String
+  ficha      FichaAtencion  @relation(fields: [ficha_id], references: [id])
+  examen_id  String
+  examen     CatalogoExamen @relation(fields: [examen_id], references: [id])
+  estado     EstadoExamen   @default(SOLICITADO)
+  prioridad  Prioridad      @default(NORMAL)
+  created_at DateTime       @default(now())
+
+  resultado      LaboratorioResultado?
+  detalles_cobro DetalleCobro[]
+}
+
+enum EstadoExamen {
+  SOLICITADO
+  EN_PROCESO
+  FINALIZADO
+}
+
+model LaboratorioResultado {
+  id              String           @id @default(uuid())
+  orden_id        String           @unique
+  orden           LaboratorioOrden @relation(fields: [orden_id], references: [id], onDelete: Cascade)
+  hallazgos       String?
+  observaciones   String?
+  archivo_url     String?
+  fecha_procesado DateTime         @default(now())
+}
+
+// ===========================
+// CAJA Y FACTURACIÓN
+// ===========================
+
+model PuntoCaja {
+  id        String       @id @default(uuid())
+  nombre    String       @unique
+  ubicacion String?
+  recibos   ReciboCaja[]
+}
+
+model ReciboCaja {
+  id               String       @id @default(uuid())
+  num_recibo       String       @unique
+  ficha_id         String?      @unique
+  ficha            FichaAtencion? @relation(fields: [ficha_id], references: [id])
+  cajero_id        String
+  cajero           Usuario      @relation(fields: [cajero_id], references: [id])
+  nombre_cliente   String?      // Para ventas directas sin ficha
+  punto_caja_id    String?
+  punto_caja       PuntoCaja?   @relation(fields: [punto_caja_id], references: [id])
+  total            Decimal
+  metodo_pago      MetodoPago   @default(EFECTIVO)
+  monto_recibido   Decimal?
+  cambio_devuelto  Decimal?
+  estado           EstadoRecibo @default(EMITIDO)
+  motivo_anulacion String?
+  fecha_pago       DateTime     @default(now())
+
+  detalles DetalleCobro[]
+}
+
+enum MetodoPago {
+  EFECTIVO
+  TARJETA
+  QR
+}
+
+enum EstadoRecibo {
+  EMITIDO
+  PAGADO
+  ANULADO
+}
+
+model DetalleCobro {
+  id           String           @id @default(uuid())
+  recibo_id    String
+  recibo       ReciboCaja       @relation(fields: [recibo_id], references: [id], onDelete: Cascade)
+  tipo         TipoDetalleCobro
+  descripcion  String
+  precio_unit  Decimal
+  cantidad     Int              @default(1)
+  subtotal     Decimal
+  orden_lab_id String?
+  orden_lab    LaboratorioOrden? @relation(fields: [orden_lab_id], references: [id])
+  producto_id  String?
+  producto     Producto?        @relation(fields: [producto_id], references: [id])
+}
+
+enum TipoDetalleCobro {
+  SERVICIO
+  LABORATORIO
+  FARMACIA
+  SUMINISTRO
+}
