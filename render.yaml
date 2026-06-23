@@ -1,0 +1,75 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Render Blueprint — VET-ERP (Hospital Escuela Veterinaria U.A.G.R.M.)
+#
+# Define toda la infraestructura: base de datos PostgreSQL + API (Node/Express/
+# Prisma) + frontend (Vite static). Para usarlo: en Render → "New +" → "Blueprint"
+# → conecta este repo (sw2-grupal-back). Render lee este archivo y crea todo.
+#
+# CLAVE: el backend usa `prisma migrate deploy` (NO destructivo) + seed idempotente,
+# así los datos y los IDs de usuario NO se borran entre despliegues (evita el error
+# de llave foránea al crear fichas por tokens "viejos").
+# ─────────────────────────────────────────────────────────────────────────────
+
+databases:
+  - name: vet-erp-db
+    databaseName: erp_veterinaria
+    plan: free # cámbialo a 'starter' u otro si necesitas más (free expira a los ~90 días)
+
+services:
+  # ── Backend: API REST (Node + Express + Prisma) ──────────────────────────────
+  - type: web
+    name: sw2-grupal-back
+    runtime: node
+    repo: https://github.com/0093564228/sw2-grupal-back
+    branch: main
+    plan: free
+    # install → compila TS → aplica migraciones SIN borrar datos → siembra (idempotente)
+    buildCommand: npm install && npm run build && npx prisma migrate deploy && npm run seed
+    startCommand: npm start
+    envVars:
+      # Conexión a la BD de este mismo Blueprint (se inyecta sola)
+      - key: DATABASE_URL
+        fromDatabase:
+          name: vet-erp-db
+          property: connectionString
+      # Secreto JWT estable (Render lo genera una vez y lo mantiene)
+      - key: JWT_SECRET
+        generateValue: true
+      - key: NODE_ENV
+        value: production
+      # URL del frontend (para CORS y para los redirects de pago de Stripe)
+      - key: CORS_ORIGIN
+        value: https://sw2-grupal-front.onrender.com
+      - key: FRONTEND_URL
+        value: https://sw2-grupal-front.onrender.com
+      # Secretos: se rellenan en el panel de Render (no se guardan en el repo)
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: MAIL_FROM
+        sync: false
+    # NOTA: no fijes PORT — Render inyecta su propio puerto y el server usa process.env.PORT.
+
+  # ── Frontend: SPA (React + Vite, sitio estático) ─────────────────────────────
+  - type: web
+    name: sw2-grupal-front
+    runtime: static
+    repo: https://github.com/0093564228/sw2-grupal-front
+    branch: main
+    buildCommand: npm install && npm run build
+    staticPublishPath: dist
+    # Reescritura para que el routing del SPA funcione (todas las rutas → index.html)
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      # Apunta el frontend al backend de arriba. Las VITE_* se "hornean" en build:
+      # si cambia la URL del backend, actualízala y vuelve a desplegar el frontend.
+      - key: VITE_API_URL
+        value: https://sw2-grupal-back.onrender.com/api
