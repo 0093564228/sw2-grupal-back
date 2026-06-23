@@ -35,6 +35,80 @@ export class MailService {
     await this.enviar(cita, "recordatorio");
   }
 
+  /**
+   * Correo tras el pago de un plan: confirma la suscripción y, si se acaba de
+   * crear la cuenta, incluye las credenciales de acceso. Nunca lanza.
+   */
+  async enviarPagoConfirmado(opts: {
+    email: string;
+    nombre?: string;
+    plan: string;
+    password?: string;
+    loginUrl?: string;
+  }): Promise<void> {
+    try {
+      const { email, plan, password } = opts;
+      if (!email) return;
+      const nombre = opts.nombre || "Estimado/a cliente";
+      const loginUrl = opts.loginUrl || "http://localhost:5173";
+      const asunto = `Pago confirmado — Plan ${plan} | VET-ERP`;
+
+      const credText = password
+        ? `\nYa creamos tu cuenta de acceso:\n  Usuario (correo): ${email}\n  Contraseña temporal: ${password}\n  Ingresa en: ${loginUrl}\n(Por seguridad, cambia tu contraseña al iniciar sesión.)\n`
+        : `\nTu cuenta ya tiene acceso con este correo: ${email}\nIngresa en: ${loginUrl}\n`;
+
+      const texto =
+        `Hola ${nombre},\n\n¡Gracias! Tu pago del plan ${plan} fue confirmado y tu suscripción quedó activa.\n` +
+        credText +
+        `\nHospital Escuela de Veterinaria U.A.G.R.M.`;
+
+      const credHtml = password
+        ? `<div style="margin:16px 0;padding:16px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px">
+             <p style="margin:0 0 8px;font-weight:bold;color:#1e293b">Tus credenciales de acceso</p>
+             <p style="margin:2px 0;font-size:14px">Usuario: <strong>${email}</strong></p>
+             <p style="margin:2px 0;font-size:14px">Contraseña temporal: <strong>${password}</strong></p>
+             <p style="margin:8px 0 0;font-size:12px;color:#64748b">Por seguridad, cambia tu contraseña al iniciar sesión.</p>
+           </div>`
+        : `<p style="font-size:14px;color:#334155">Tu cuenta ya tiene acceso con el correo <strong>${email}</strong>.</p>`;
+
+      const html = `
+        <div style="font-family:Arial,sans-serif;max-width:520px;margin:auto;border:1px solid #eee;border-radius:12px;overflow:hidden">
+          <div style="background:#facc15;padding:16px 24px">
+            <h2 style="margin:0;color:#1e293b">¡Pago confirmado!</h2>
+            <p style="margin:4px 0 0;color:#1e293b;font-size:13px">Plan ${plan} — VET-ERP</p>
+          </div>
+          <div style="padding:24px;color:#334155">
+            <p>Hola <strong>${nombre}</strong>,</p>
+            <p>¡Gracias! Tu pago del <strong>plan ${plan}</strong> fue confirmado y tu suscripción quedó activa.</p>
+            ${credHtml}
+            <p style="text-align:center;margin:20px 0">
+              <a href="${loginUrl}" style="background:#facc15;color:#1e293b;text-decoration:none;font-weight:bold;padding:10px 24px;border-radius:8px;display:inline-block">Ingresar al sistema</a>
+            </p>
+          </div>
+        </div>`;
+
+      if (!this.transporter) {
+        console.log(
+          `[MailService] (sin credenciales SMTP) Se enviaría a ${email}: "${asunto}"`,
+        );
+        return;
+      }
+      await this.transporter.sendMail({
+        from: this.from,
+        to: email,
+        subject: asunto,
+        text: texto,
+        html,
+      });
+      console.log(`[MailService] Pago confirmado enviado a ${email}`);
+    } catch (err: any) {
+      console.error(
+        "[MailService] No se pudo enviar el correo de pago:",
+        err?.message || err,
+      );
+    }
+  }
+
   private async enviar(
     cita: any,
     tipo: "confirmacion" | "recordatorio",

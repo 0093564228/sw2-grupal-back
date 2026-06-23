@@ -28,4 +28,21 @@ router.put(
   cajaController.anularRecibo,
 );
 
+// Arqueo y cierre de caja: solo Cajero o Administrador
+router.get(
+  "/arqueo",
+  roleMiddleware.require("Cajero", "Admin"),
+  cajaController.getArqueo,
+);
+router.get(
+  "/cierres",
+  roleMiddleware.require("Cajero", "Admin"),
+  cajaController.getCierres,
+);
+router.post(
+  "/cierres",
+  roleMiddleware.require("Cajero", "Admin"),
+  cajaController.registrarCierre,
+);
+
 export default router;

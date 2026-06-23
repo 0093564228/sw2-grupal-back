@@ -36,6 +36,7 @@ model Usuario {
   fichas_como_doctor FichaAtencion[] @relation("FichaDoctorRelation")
   fichas_creadas     FichaAtencion[] @relation("FichaCreadorRelation")
   recibos            ReciboCaja[]
+  cierres_caja       CierreCaja[]
   citas              Cita[]
   salas_responsable  Consultorio[]   @relation("ResponsableSala")
 
@@ -396,6 +397,62 @@ model ReciboCaja {
   fecha_pago       DateTime       @default(now())
 
   detalles DetalleCobro[]
+}
+
+model CierreCaja {
+  id               String   @id @default(uuid())
+  cajero_id        String
+  cajero           Usuario  @relation(fields: [cajero_id], references: [id])
+  fecha_desde      DateTime
+  fecha_hasta      DateTime
+  total_efectivo   Decimal  @default(0)
+  total_tarjeta    Decimal  @default(0)
+  total_qr         Decimal  @default(0)
+  total_general    Decimal  @default(0)
+  cantidad_recibos Int      @default(0)
+  efectivo_contado Decimal?
+  diferencia       Decimal?
+  observaciones    String?
+  created_at       DateTime @default(now())
+}
+
+// ── Landing pública: leads de contacto y suscripciones (pago) ────────────────
+model Lead {
+  id         String     @id @default(uuid())
+  nombre     String
+  email      String
+  telefono   String?
+  empresa    String?
+  mensaje    String?
+  origen     OrigenLead @default(CONTACTO)
+  created_at DateTime   @default(now())
+}
+
+model Suscripcion {
+  id                String            @id @default(uuid())
+  plan              String
+  nombre            String?
+  email             String?
+  monto             Decimal           @default(0)
+  moneda            String            @default("usd")
+  estado              EstadoSuscripcion @default(PENDIENTE)
+  stripe_session_id   String?           @unique
+  cuenta_provisionada Boolean           @default(false)
+  usuario_id          String?
+  created_at          DateTime          @default(now())
+}
+
+enum OrigenLead {
+  CONTACTO
+  DEMO
+  PLAN
+  NEWSLETTER
+}
+
+enum EstadoSuscripcion {
+  PENDIENTE
+  PAGADO
+  CANCELADO
 }
 
 enum MetodoPago {

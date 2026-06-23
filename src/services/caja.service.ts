@@ -19,6 +19,112 @@ const reciboInclude = {
 export class CajaService {
   constructor(private readonly prisma: PrismaClient) {}
 
+  // ── Arqueo y cierre de caja ────────────────────────────────────────────────
+
+  /**
+   * Arqueo: resume las transacciones (recibos NO anulados) de un cajero en un
+   * rango, desglosadas por método de pago, con total y cantidad. No persiste.
+   */
+  async getArqueo(cajeroId: string, desde: Date, hasta: Date) {
+    try {
+      const recibos = await this.prisma.reciboCaja.findMany({
+        where: {
+          cajero_id: cajeroId,
+          estado: { not: "ANULADO" },
+          fecha_pago: { gte: desde, lte: hasta },
+        },
+        select: { metodo_pago: true, total: true },
+      });
+
+      const porMetodo: Record<string, { cantidad: number; total: number }> = {
+        EFECTIVO: { cantidad: 0, total: 0 },
+        TARJETA: { cantidad: 0, total: 0 },
+        QR: { cantidad: 0, total: 0 },
+      };
+      for (const r of recibos) {
+        const m = String(r.metodo_pago);
+        if (!porMetodo[m]) porMetodo[m] = { cantidad: 0, total: 0 };
+        porMetodo[m].cantidad += 1;
+        porMetodo[m].total += Number(r.total);
+      }
+      const total_general = Object.values(porMetodo).reduce(
+        (s, x) => s + x.total,
+        0,
+      );
+
+      return {
+        desde,
+        hasta,
+        por_metodo: porMetodo,
+        total_efectivo: porMetodo.EFECTIVO.total,
+        total_tarjeta: porMetodo.TARJETA.total,
+        total_qr: porMetodo.QR.total,
+        total_general,
+        cantidad_recibos: recibos.length,
+      };
+    } catch (err) {
+      throw { status: 500, message: "Error al generar el arqueo de caja" };
+    }
+  }
+
+  /**
+   * Registra el cierre de caja de un turno: toma el arqueo del rango, compara el
+   * efectivo contado con el esperado (diferencia) y guarda el registro histórico.
+   */
+  async registrarCierre(
+    cajeroId: string,
+    data: {
+      desde: Date;
+      hasta: Date;
+      efectivo_contado?: number;
+      observaciones?: string;
+    },
+  ) {
+    try {
+      const arqueo = await this.getArqueo(cajeroId, data.desde, data.hasta);
+      const contado =
+        data.efectivo_contado != null ? Number(data.efectivo_contado) : null;
+      const diferencia =
+        contado != null ? contado - arqueo.total_efectivo : null;
+
+      return await this.prisma.cierreCaja.create({
+        data: {
+          cajero_id: cajeroId,
+          fecha_desde: data.desde,
+          fecha_hasta: data.hasta,
+          total_efectivo: arqueo.total_efectivo,
+          total_tarjeta: arqueo.total_tarjeta,
+          total_qr: arqueo.total_qr,
+          total_general: arqueo.total_general,
+          cantidad_recibos: arqueo.cantidad_recibos,
+          efectivo_contado: contado ?? undefined,
+          diferencia: diferencia ?? undefined,
+          observaciones: data.observaciones?.trim() || undefined,
+        },
+        include: { cajero: { select: { id: true, nombre: true } } },
+      });
+    } catch (err: any) {
+      throw {
+        status: err?.status || 500,
+        message: err?.message || "Error al registrar el cierre de caja",
+      };
+    }
+  }
+
+  /** Historial de cierres. Sin filtro = todos (admin); con filtro = de un cajero. */
+  async getCierres(filtroCajeroId?: string) {
+    try {
+      return await this.prisma.cierreCaja.findMany({
+        where: filtroCajeroId ? { cajero_id: filtroCajeroId } : {},
+        include: { cajero: { select: { id: true, nombre: true } } },
+        orderBy: { created_at: "desc" },
+        take: 50,
+      });
+    } catch (err) {
+      throw { status: 500, message: "Error al obtener los cierres de caja" };
+    }
+  }
+
   private async genNumRecibo() {
     const n = await this.prisma.reciboCaja.count();
     return `REC-${String(n + 1).padStart(5, "0")}`;
