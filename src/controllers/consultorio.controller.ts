@@ -46,11 +46,16 @@ export class ConsultorioController {
   updateConsultorio = async (req: Request, res: Response) => {
     try {
       const id = req.params.id as string;
-      const { nombre, especialidad, estado } = req.body;
+      const { nombre, especialidad, estado, tipo, responsable_id } = req.body;
       const consultorio = await this.consultorioService.updateConsultorio(id, {
         ...(nombre !== undefined && { nombre }),
         ...(especialidad !== undefined && { especialidad }),
         ...(estado !== undefined && { estado: estado as ConsultorioEstado }),
+        ...(tipo !== undefined && { tipo }),
+        // responsable_id puede ser un id (asignar) o null (quitar responsable)
+        ...(responsable_id !== undefined && {
+          responsable_id: responsable_id || null,
+        }),
       });
       res.json(consultorio);
     } catch (err) {

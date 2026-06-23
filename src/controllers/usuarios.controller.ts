@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { UsuariosService } from "../services/usuarios.service";
 import { ErrorHandler } from "../middlewares/error.middleware";
+import { getUserId } from "../middlewares/auth.middleware";
 
 export class UsuariosController {
   constructor(
@@ -55,6 +56,30 @@ export class UsuariosController {
     try {
       await this.usuariosService.deleteUsuario(req.params.id as string);
       res.json({ ok: true });
+    } catch (err) {
+      this.errors.e500(req, res, err);
+    }
+  };
+
+  /** Cambia la contraseña del usuario autenticado (cualquier rol). */
+  changeMyPassword = async (req: Request, res: Response) => {
+    try {
+      const userId = getUserId(req);
+      const { currentPassword, newPassword } = req.body as {
+        currentPassword?: string;
+        newPassword?: string;
+      };
+      if (!currentPassword || !newPassword) {
+        return res
+          .status(400)
+          .json({ message: "Debes indicar la contraseña actual y la nueva" });
+      }
+      const result = await this.usuariosService.changeOwnPassword(
+        userId,
+        currentPassword,
+        newPassword,
+      );
+      res.json(result);
     } catch (err) {
       this.errors.e500(req, res, err);
     }

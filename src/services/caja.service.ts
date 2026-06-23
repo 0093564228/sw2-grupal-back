@@ -13,9 +13,7 @@ const reciboInclude = {
   },
   cajero: { select: { id: true, nombre: true } },
   punto_caja: true,
-  detalles: {
-    include: { orden_lab: { include: { examen: true } }, producto: true },
-  },
+  detalles: { include: { producto: true } },
 };
 
 export class CajaService {
@@ -78,14 +76,8 @@ export class CajaService {
             include: { propietario: { select: { id: true, nombre: true } } },
           },
           servicio: true,
-          soap: {
-            include: {
-              receta: {
-                include: { detalles: { include: { producto: true } } },
-              },
-            },
-          },
-          ordenes_lab: { include: { examen: true } },
+          servicios_realizados: { include: { servicio: true } },
+          soap: true,
           consumos: { include: { producto: true } },
         },
         orderBy: { fecha_hora: "asc" },
@@ -136,31 +128,23 @@ export class CajaService {
         where: { id: data.ficha_id },
         include: {
           servicio: true,
-          ordenes_lab: { include: { examen: true } },
-          soap: {
-            include: {
-              receta: {
-                include: { detalles: { include: { producto: true } } },
-              },
-            },
-          },
+          servicios_realizados: { include: { servicio: true } },
           consumos: { include: { producto: true } },
         },
       });
 
       type Detalle = {
-        tipo: "SERVICIO" | "LABORATORIO" | "FARMACIA" | "SUMINISTRO";
+        tipo: "SERVICIO" | "FARMACIA" | "SUMINISTRO";
         descripcion: string;
         precio_unit: number;
         cantidad: number;
         subtotal: number;
-        orden_lab_id?: string;
         producto_id?: string;
       };
 
       const detalles: Detalle[] = [];
 
-      // 1. Tarifa del servicio
+      // 1. Tarifa de consulta base (asignada en el fichaje)
       detalles.push({
         tipo: "SERVICIO",
         descripcion: ficha.servicio.nombre,
@@ -169,19 +153,18 @@ export class CajaService {
         subtotal: Number(ficha.servicio.precio_base),
       });
 
-      // 2. Órdenes de laboratorio
-      for (const orden of ficha.ordenes_lab) {
+      // 2. Servicios realizados durante la consulta (los agrega el veterinario)
+      for (const sr of ficha.servicios_realizados) {
         detalles.push({
-          tipo: "LABORATORIO",
-          descripcion: orden.examen.nombre,
-          precio_unit: Number(orden.examen.precio),
-          cantidad: 1,
-          subtotal: Number(orden.examen.precio),
-          orden_lab_id: orden.id,
+          tipo: "SERVICIO",
+          descripcion: sr.servicio.nombre,
+          precio_unit: Number(sr.precio),
+          cantidad: sr.cantidad,
+          subtotal: Number(sr.precio) * sr.cantidad,
         });
       }
 
-      // 3. Insumos/suministros usados en consulta (no descuentan stock aquí — lo hace Farmacia al dispensar)
+      // 3. Insumos/suministros usados en consulta
       for (const cons of ficha.consumos) {
         const precio = Number(cons.producto.precio_venta);
         detalles.push({
@@ -192,21 +175,6 @@ export class CajaService {
           subtotal: precio * cons.cantidad,
           producto_id: cons.producto_id,
         });
-      }
-
-      // 4. Productos de la receta médica (no descuentan stock aquí — lo hace Farmacia al dispensar)
-      if (ficha.soap?.receta) {
-        for (const det of ficha.soap.receta.detalles) {
-          const precio = Number(det.producto.precio_venta);
-          detalles.push({
-            tipo: "FARMACIA",
-            descripcion: det.producto.nombre,
-            precio_unit: precio,
-            cantidad: det.cantidad,
-            subtotal: precio * det.cantidad,
-            producto_id: det.producto_id,
-          });
-        }
       }
 
       const total = detalles.reduce((s, d) => s + d.subtotal, 0);
@@ -235,6 +203,14 @@ export class CajaService {
           where: { id: data.ficha_id },
           data: { estado_cobro: "PAGADO" },
         });
+
+        // Liberar el consultorio automáticamente al registrarse el pago.
+        if (ficha.consultorio_id) {
+          await tx.consultorio.update({
+            where: { id: ficha.consultorio_id },
+            data: { estado: "LIBRE" },
+          });
+        }
 
         return recibo;
       });

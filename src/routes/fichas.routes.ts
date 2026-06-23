@@ -20,11 +20,18 @@ router.put("/:id/cancelar", fichaController.cancelarFicha);
 router.get("/:id/soap", fichaController.getSoap);
 router.post("/:id/soap", fichaController.upsertSoap);
 router.put("/:id/soap", fichaController.upsertSoap);
-router.post("/:id/receta", fichaController.createReceta);
 
 // Consumos/insumos usados en consulta
 router.get("/:id/consumos", fichaController.getConsumos);
 router.post("/:id/consumos", fichaController.addConsumo);
 router.delete("/:id/consumos/:consumoId", fichaController.removeConsumo);
+
+// Servicios realizados durante la consulta
+router.get("/:id/servicios", fichaController.getServiciosRealizados);
+router.post("/:id/servicios", fichaController.addServicioRealizado);
+router.delete(
+  "/:id/servicios/:servicioId",
+  fichaController.removeServicioRealizado,
+);
 
 export default router;

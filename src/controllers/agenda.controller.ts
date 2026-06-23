@@ -11,10 +11,12 @@ export class AgendaController {
 
   getCitas = async (req: Request, res: Response) => {
     try {
-      const { fecha, doctor_id } = req.query;
+      const { fecha, doctor_id, desde, hasta } = req.query;
       const citas = await this.agendaService.getCitas(
         fecha as string,
         doctor_id as string,
+        desde as string,
+        hasta as string,
       );
       res.json(citas);
     } catch (err) {
@@ -72,6 +74,70 @@ export class AgendaController {
         getUserId(req),
       );
       res.status(201).json(ficha);
+    } catch (err) {
+      this.errors.e500(req, res, err);
+    }
+  };
+
+  // ── Autoservicio del propietario ──────────────────────────────────────────
+
+  solicitarCita = async (req: Request, res: Response) => {
+    try {
+      const cita = await this.agendaService.solicitarCitaPropietario(
+        getUserId(req),
+        req.body,
+      );
+      res.status(201).json(cita);
+    } catch (err) {
+      this.errors.e500(req, res, err);
+    }
+  };
+
+  getMisCitas = async (req: Request, res: Response) => {
+    try {
+      const citas = await this.agendaService.getCitasPropietario(getUserId(req));
+      res.json(citas);
+    } catch (err) {
+      this.errors.e500(req, res, err);
+    }
+  };
+
+  getMisMascotas = async (req: Request, res: Response) => {
+    try {
+      const mascotas = await this.agendaService.getMascotasPropietario(
+        getUserId(req),
+      );
+      res.json(mascotas);
+    } catch (err) {
+      this.errors.e500(req, res, err);
+    }
+  };
+
+  getSolicitudes = async (_req: Request, res: Response) => {
+    try {
+      const sols = await this.agendaService.getSolicitudesPendientes();
+      res.json(sols);
+    } catch (err) {
+      this.errors.e500(_req, res, err);
+    }
+  };
+
+  getDisponibilidad = async (req: Request, res: Response) => {
+    try {
+      const { fecha, doctor_id, duracion } = req.query as {
+        fecha?: string;
+        doctor_id?: string;
+        duracion?: string;
+      };
+      if (!fecha) {
+        return res.status(400).json({ message: "Falta la fecha" });
+      }
+      const slots = await this.agendaService.getDisponibilidad(
+        fecha,
+        doctor_id || undefined,
+        duracion ? Number(duracion) : 30,
+      );
+      res.json(slots);
     } catch (err) {
       this.errors.e500(req, res, err);
     }

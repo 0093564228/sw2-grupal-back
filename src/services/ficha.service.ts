@@ -21,13 +21,9 @@ const fichaInclude = {
   doctor: { select: { id: true, nombre: true, email: true } },
   consultorio: true,
   creado_por: { select: { id: true, nombre: true } },
-  soap: {
-    include: {
-      receta: { include: { detalles: { include: { producto: true } } } },
-    },
-  },
-  ordenes_lab: { include: { examen: true, resultado: true } },
+  soap: true,
   consumos: { include: { producto: true } },
+  servicios_realizados: { include: { servicio: true } },
   recibo: true,
 };
 
@@ -38,18 +34,18 @@ export class FichaService {
    * Genera un código de turno corto estilo banco (Ej: C-01, E-05)
    * Se reinicia cada día.
    */
-  private async genTurnoDiario(prioridad: string, servicioId: string) {
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
-
-    const endOfDay = new Date();
-    endOfDay.setHours(23, 59, 59, 999);
-
-    // 1. Determinar el prefijo
-    let prefix = "T"; // Default: Turno
+  /**
+   * Genera un código de turno corto por tipo (C=consulta, L=laboratorio,
+   * E=emergencia, T=otro). Numeración CONTINUA por prefijo: como `cod_ficha`
+   * es único a nivel global, se toma el mayor número existente del prefijo y se
+   * suma 1 (no se reinicia por día, lo que provocaba colisiones al cambiar de
+   * fecha).
+   */
+  private async genCodTurno(prioridad: string, servicioId: string) {
+    let prefix = "T";
 
     if (prioridad === "URGENTE") {
-      prefix = "E"; // Emergencia
+      prefix = "E";
     } else {
       const servicio = await this.prisma.catalogoServicio.findUnique({
         where: { id: servicioId },
@@ -59,20 +55,17 @@ export class FichaService {
       else if (nombre.includes("consulta")) prefix = "C";
     }
 
-    // 2. Buscar el mayor número ya asignado hoy para ese prefijo
-    const last = await this.prisma.fichaAtencion.findFirst({
-      where: {
-        cod_ficha: { startsWith: `${prefix}-` },
-        fecha_hora: { gte: startOfDay, lte: endOfDay },
-      },
-      orderBy: { fecha_hora: "desc" },
+    const fichas = await this.prisma.fichaAtencion.findMany({
+      where: { cod_ficha: { startsWith: `${prefix}-` } },
       select: { cod_ficha: true },
     });
 
-    const lastNum = last
-      ? parseInt(last.cod_ficha.replace(`${prefix}-`, ""), 10) || 0
-      : 0;
-    return `${prefix}-${String(lastNum + 1).padStart(2, "0")}`;
+    let max = 0;
+    for (const f of fichas) {
+      const n = parseInt(f.cod_ficha.replace(`${prefix}-`, ""), 10);
+      if (!Number.isNaN(n) && n > max) max = n;
+    }
+    return `${prefix}-${String(max + 1).padStart(2, "0")}`;
   }
 
   async getFichas(filters?: {
@@ -118,23 +111,31 @@ export class FichaService {
     prioridad?: "URGENTE" | "NORMAL";
     creado_por_id?: string;
   }) {
-    try {
-      // GENERACIÓN DEL TURNO CORTO ESTILO BANCO
-      const cod_ficha = await this.genTurnoDiario(
-        data.prioridad || "NORMAL",
-        data.servicio_id,
-      );
-
-      return await this.prisma.fichaAtencion.create({
-        data: { ...data, cod_ficha },
-        include: fichaInclude,
-      });
-    } catch (err: any) {
-      throw {
-        status: err?.status || 500,
-        message: err?.message || "Error al crear la ficha de atención",
-      };
+    // Reintenta si dos turnos se generan a la vez y chocan en cod_ficha (único).
+    for (let intento = 0; intento < 5; intento++) {
+      try {
+        const cod_ficha = await this.genCodTurno(
+          data.prioridad || "NORMAL",
+          data.servicio_id,
+        );
+        return await this.prisma.fichaAtencion.create({
+          data: { ...data, cod_ficha },
+          include: fichaInclude,
+        });
+      } catch (err: any) {
+        // P2002 = colisión de cod_ficha → recalcular y reintentar
+        if (err?.code === "P2002") continue;
+        throw {
+          status: err?.status || 500,
+          message: err?.message || "Error al crear la ficha de atención",
+        };
+      }
     }
+    throw {
+      status: 500,
+      message:
+        "No se pudo generar un número de turno único. Intente nuevamente.",
+    };
   }
 
   async iniciarFicha(
@@ -144,10 +145,19 @@ export class FichaService {
   ) {
     try {
       return await this.prisma.$transaction(async (tx) => {
-        await tx.consultorio.update({
-          where: { id: data.consultorio_id },
+        // Ocupa la sala de forma atómica: solo si SIGUE libre.
+        // Si otra atención la tomó primero, count = 0 y abortamos (evita doble-asignación).
+        const ocupada = await tx.consultorio.updateMany({
+          where: { id: data.consultorio_id, estado: "LIBRE" },
           data: { estado: "OCUPADO" },
         });
+        if (ocupada.count === 0) {
+          throw {
+            status: 409,
+            message:
+              "La sala seleccionada ya no está disponible. Elige otra sala libre.",
+          };
+        }
         return tx.fichaAtencion.update({
           where: { id },
           // asignación deliberada (body) si viene; si no, el actor que inicia la atención
@@ -159,29 +169,22 @@ export class FichaService {
           include: fichaInclude,
         });
       });
-    } catch (err) {
-      throw { status: 500, message: "Error al iniciar la ficha de atención" };
+    } catch (err: any) {
+      throw {
+        status: err?.status || 500,
+        message: err?.message || "Error al iniciar la ficha de atención",
+      };
     }
   }
 
   async completarFicha(id: string) {
     try {
-      return await this.prisma.$transaction(async (tx) => {
-        const ficha = await tx.fichaAtencion.findUnique({
-          where: { id },
-          select: { consultorio_id: true },
-        });
-        if (ficha?.consultorio_id) {
-          await tx.consultorio.update({
-            where: { id: ficha.consultorio_id },
-            data: { estado: "LIBRE" },
-          });
-        }
-        return tx.fichaAtencion.update({
-          where: { id },
-          data: { estado: "COMPLETADA" },
-          include: fichaInclude,
-        });
+      // La sala NO se libera aquí: queda OCUPADA hasta que el cajero registre el
+      // pago. La liberación del consultorio es automática en CajaService.cobrarFicha.
+      return await this.prisma.fichaAtencion.update({
+        where: { id },
+        data: { estado: "COMPLETADA" },
+        include: fichaInclude,
       });
     } catch (err) {
       throw { status: 500, message: "Error al completar la ficha de atención" };
@@ -319,9 +322,6 @@ export class FichaService {
     try {
       return await this.prisma.registroSOAP.findUnique({
         where: { ficha_id },
-        include: {
-          receta: { include: { detalles: { include: { producto: true } } } },
-        },
       });
     } catch (err) {
       throw { status: 500, message: "Error al obtener el registro SOAP" };
@@ -347,9 +347,6 @@ export class FichaService {
         where: { ficha_id },
         create: { ficha_id, ...data },
         update: data,
-        include: {
-          receta: { include: { detalles: { include: { producto: true } } } },
-        },
       });
     } catch (err) {
       throw { status: 500, message: "Error al guardar el registro SOAP" };
@@ -390,34 +387,53 @@ export class FichaService {
     }
   }
 
-  // ── RECETA ──────────────────────────────────────────────────────────
-  async createReceta(
-    ficha_id: string,
-    data: {
-      indicaciones?: string;
-      detalles: {
-        producto_id: string;
-        cantidad: number;
-        instrucciones?: string;
-      }[];
-    },
-  ) {
+  // ── SERVICIOS REALIZADOS EN LA CONSULTA ─────────────────────────────
+  async getServiciosRealizados(ficha_id: string) {
     try {
-      let soap = await this.prisma.registroSOAP.findUnique({
+      return await this.prisma.fichaServicio.findMany({
         where: { ficha_id },
-      });
-      if (!soap)
-        soap = await this.prisma.registroSOAP.create({ data: { ficha_id } });
-      return await this.prisma.recetaMedica.create({
-        data: {
-          soap_id: soap.id,
-          indicaciones: data.indicaciones,
-          detalles: { create: data.detalles },
-        },
-        include: { detalles: { include: { producto: true } } },
+        include: { servicio: true },
+        orderBy: { created_at: "asc" },
       });
     } catch (err) {
-      throw { status: 500, message: "Error al crear la receta médica" };
+      throw {
+        status: 500,
+        message: "Error al obtener los servicios de la ficha",
+      };
+    }
+  }
+
+  async addServicioRealizado(
+    ficha_id: string,
+    data: { servicio_id: string; cantidad?: number },
+  ) {
+    try {
+      // El precio se "congela" desde el catálogo al momento de agregarlo.
+      const servicio = await this.prisma.catalogoServicio.findUniqueOrThrow({
+        where: { id: data.servicio_id },
+      });
+      return await this.prisma.fichaServicio.create({
+        data: {
+          ficha_id,
+          servicio_id: data.servicio_id,
+          precio: servicio.precio_base,
+          cantidad: data.cantidad && data.cantidad > 0 ? data.cantidad : 1,
+        },
+        include: { servicio: true },
+      });
+    } catch (err: any) {
+      throw {
+        status: err?.status || 500,
+        message: err?.message || "Error al agregar el servicio a la consulta",
+      };
+    }
+  }
+
+  async removeServicioRealizado(id: string) {
+    try {
+      return await this.prisma.fichaServicio.delete({ where: { id } });
+    } catch (err) {
+      throw { status: 500, message: "Error al eliminar el servicio" };
     }
   }
 }

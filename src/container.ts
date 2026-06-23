@@ -26,13 +26,14 @@ import { UsuariosService } from "./services/usuarios.service";
 import { MascotaService } from "./services/mascota.service";
 import { FichaService } from "./services/ficha.service";
 import { AgendaService } from "./services/agenda.service";
+import { MailService } from "./services/mail.service";
 import { CajaService } from "./services/caja.service";
 import { CatalogoService } from "./services/catalogo.service";
 import { ConsultorioService } from "./services/consultorio.service";
 import { DashboardService } from "./services/dashboard.service";
-import { FarmaciaService } from "./services/farmacia.service";
-import { LaboratorioService } from "./services/laboratorio.service";
 import { ProductoService } from "./services/producto.service";
+import { ServicioService } from "./services/servicio.service";
+import { HistoriaService } from "./services/historia.service";
 import { ChatbotService } from "./services/chatbot.service";
 
 // ── Controllers ──
@@ -45,9 +46,9 @@ import { CajaController } from "./controllers/caja.controller";
 import { CatalogoController } from "./controllers/catalogo.controller";
 import { ConsultorioController } from "./controllers/consultorio.controller";
 import { DashboardController } from "./controllers/dashboard.controller";
-import { FarmaciaController } from "./controllers/farmacia.controller";
-import { LaboratorioController } from "./controllers/laboratorio.controller";
 import { ProductoController } from "./controllers/producto.controller";
+import { ServicioController } from "./controllers/servicio.controller";
+import { HistoriaController } from "./controllers/historia.controller";
 import { ChatbotController } from "./controllers/chatbot.controller";
 
 // ─── Infraestructura ──────────────────────────────────────────────────────────
@@ -66,16 +67,21 @@ const errorHandler = new ErrorHandler();
 const usuariosService = new UsuariosService(prisma, passwordService);
 const fichaService = new FichaService(prisma);
 const mascotaService = new MascotaService(prisma, usuariosService);
-const agendaService = new AgendaService(prisma, fichaService);
+const mailService = new MailService({
+  user: process.env.SMTP_USER,
+  pass: process.env.SMTP_PASS,
+  from: process.env.MAIL_FROM,
+});
+const agendaService = new AgendaService(prisma, fichaService, mailService);
 const authService = new AuthService(prisma, tokenService, passwordService);
 const cajaService = new CajaService(prisma);
 const catalogoService = new CatalogoService(prisma);
 const consultorioService = new ConsultorioService(prisma);
 const dashboardService = new DashboardService(prisma);
-const farmaciaService = new FarmaciaService(prisma);
-const laboratorioService = new LaboratorioService(prisma);
 const productoService = new ProductoService(prisma);
-const chatbotService = new ChatbotService(process.env.GEMINI_API_KEY || "");
+const servicioService = new ServicioService(prisma);
+const historiaService = new HistoriaService(prisma);
+const chatbotService = new ChatbotService(process.env.OPENAI_API_KEY || "");
 
 // ─── Middlewares ───────────────────────────────────────────────────────────────
 export const authMiddleware = new AuthMiddleware(tokenService);
@@ -109,16 +115,16 @@ export const dashboardController = new DashboardController(
   dashboardService,
   errorHandler,
 );
-export const farmaciaController = new FarmaciaController(
-  farmaciaService,
-  errorHandler,
-);
-export const laboratorioController = new LaboratorioController(
-  laboratorioService,
-  errorHandler,
-);
 export const productoController = new ProductoController(
   productoService,
+  errorHandler,
+);
+export const servicioController = new ServicioController(
+  servicioService,
+  errorHandler,
+);
+export const historiaController = new HistoriaController(
+  historiaService,
   errorHandler,
 );
 export const chatbotController = new ChatbotController(

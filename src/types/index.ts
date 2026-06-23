@@ -27,11 +27,21 @@ export interface JwtPayload {
 
 // ─── AGENDA ──────────────────────────────────────────────────────────────────
 
+export type TipoCita =
+  | "CONSULTA"
+  | "CONTROL"
+  | "VACUNACION"
+  | "CIRUGIA"
+  | "PELUQUERIA"
+  | "OTRO";
+
 export interface CreateCitaDto {
   mascota_id: string;
   doctor_id?: string;
   consultorio_id?: string;
   fecha_hora: string;
+  duracion_min?: number;
+  tipo?: TipoCita;
   motivo: string;
   notas?: string;
 }
@@ -40,11 +50,22 @@ export interface UpdateCitaDto {
   doctor_id?: string;
   consultorio_id?: string;
   fecha_hora?: string;
+  duracion_min?: number;
+  tipo?: TipoCita;
   motivo?: string;
   notas?: string;
 }
 
+export interface SolicitarCitaDto {
+  mascota_id: string;
+  fecha_hora: string;
+  duracion_min?: number;
+  tipo?: TipoCita;
+  motivo?: string;
+}
+
 export type EstadoCita =
+  | "SOLICITADA"
   | "PROGRAMADA"
   | "CONFIRMADA"
   | "COMPLETADA"
@@ -76,11 +97,6 @@ export interface UpsertSoapDto {
   hallazgos?: string;
   diagnostico?: string;
   tratamiento?: string;
-}
-
-export interface CreateRecetaDto {
-  indicaciones?: string;
-  detalles: { producto_id: string; cantidad: number; instrucciones?: string }[];
 }
 
 export interface AddConsumoDto {
@@ -190,23 +206,6 @@ export interface UpdateConsultorioDto {
   tipo?: TipoConsultorio;
   estado?: EstadoConsultorio;
   responsable_id?: string;
-}
-
-// ─── LABORATORIO ─────────────────────────────────────────────────────────────
-
-export type PrioridadOrden = "URGENTE" | "NORMAL";
-export type EstadoOrden = "SOLICITADO" | "EN_PROCESO" | "FINALIZADO";
-
-export interface CreateOrdenLabDto {
-  ficha_id: string;
-  examen_id: string;
-  prioridad?: PrioridadOrden;
-}
-
-export interface CargarResultadoDto {
-  hallazgos?: string;
-  observaciones?: string;
-  archivo_url?: string;
 }
 
 // ─── PRODUCTO ─────────────────────────────────────────────────────────────────
