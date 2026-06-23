@@ -27,6 +27,7 @@ import { MascotaService } from "./services/mascota.service";
 import { FichaService } from "./services/ficha.service";
 import { AgendaService } from "./services/agenda.service";
 import { MailService } from "./services/mail.service";
+import { LandingService } from "./services/landing.service";
 import { CajaService } from "./services/caja.service";
 import { CatalogoService } from "./services/catalogo.service";
 import { ConsultorioService } from "./services/consultorio.service";
@@ -50,6 +51,7 @@ import { ProductoController } from "./controllers/producto.controller";
 import { ServicioController } from "./controllers/servicio.controller";
 import { HistoriaController } from "./controllers/historia.controller";
 import { ChatbotController } from "./controllers/chatbot.controller";
+import { LandingController } from "./controllers/landing.controller";
 
 // ─── Infraestructura ──────────────────────────────────────────────────────────
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -103,6 +105,20 @@ export const agendaController = new AgendaController(
   errorHandler,
 );
 export const cajaController = new CajaController(cajaService, errorHandler);
+
+const landingService = new LandingService(
+  prisma,
+  passwordService,
+  mailService,
+  {
+    stripeKey: process.env.STRIPE_SECRET_KEY,
+    frontendUrl: process.env.FRONTEND_URL || process.env.CORS_ORIGIN,
+  },
+);
+export const landingController = new LandingController(
+  landingService,
+  errorHandler,
+);
 export const catalogoController = new CatalogoController(
   catalogoService,
   errorHandler,

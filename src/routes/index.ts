@@ -12,6 +12,7 @@ import dashboardRoutes from "./dashboard.routes";
 import usuariosRoutes from "./usuarios.routes";
 import agendaRoutes from "./agenda.routes";
 import chatbotRoutes from "./chatbot.routes";
+import landingRoutes from "./landing.routes";
 import { authMiddleware, roleMiddleware, usuariosController } from "../container";
 
 const router = Router();
@@ -19,6 +20,7 @@ const router = Router();
 // Públicas
 router.use("/auth", authRoutes); // login público; register protegido dentro del archivo
 router.use("/chatbot", chatbotRoutes); // asistente de emergencias de acceso público
+router.use("/", landingRoutes); // landing pública: /leads, /checkout, /checkout/verify
 
 // Solo requieren sesión válida (cualquier usuario logueado)
 router.use("/dashboard", authMiddleware.authenticate, dashboardRoutes);
