@@ -18,7 +18,7 @@ async function main() {
       update: {},
       create: {
         nombre: "VETERINARIO",
-        permisos: { clinical: true, lab: true },
+        permisos: { clinical: true },
       },
     }),
     prisma.role.upsert({
@@ -35,19 +35,13 @@ async function main() {
       create: { nombre: "CAJERO", permisos: { caja: true } },
     }),
     prisma.role.upsert({
-      where: { nombre: "FARMACEUTICO" },
-      update: {},
-      create: { nombre: "FARMACEUTICO", permisos: { farmacia: true } },
-    }),
-    prisma.role.upsert({
       where: { nombre: "CLIENTE" },
       update: {},
       create: { nombre: "CLIENTE", permisos: {} },
     }),
   ]);
 
-  const [roleAdmin, roleVet, roleRecep, roleCajero, roleFarma, roleCliente] =
-    roles;
+  const [roleAdmin, roleVet, roleRecep, roleCajero, roleCliente] = roles;
   console.log("✅ Roles creados");
 
   // ===========================
@@ -55,7 +49,7 @@ async function main() {
   // ===========================
   const hash = (pw: string) => bcrypt.hash(pw, 10);
 
-  const [admin, vet1, vet2, recep1, cajero1, farma1] = await Promise.all([
+  const [admin, vet1, vet2, recep1, cajero1] = await Promise.all([
     prisma.usuario.upsert({
       where: { email: "admin@vetcare.com" },
       update: {},
@@ -104,16 +98,6 @@ async function main() {
         email: "luis.roca@vetcare.com",
         password_hash: await hash("caja123"),
         rol_id: roleCajero.id,
-      },
-    }),
-    prisma.usuario.upsert({
-      where: { email: "jose.silva@vetcare.com" },
-      update: {},
-      create: {
-        nombre: "José Silva",
-        email: "jose.silva@vetcare.com",
-        password_hash: await hash("farma123"),
-        rol_id: roleFarma.id,
       },
     }),
   ]);
@@ -397,59 +381,6 @@ async function main() {
   console.log("✅ Catálogo de servicios creado");
 
   // ===========================
-  // CATÁLOGO: EXÁMENES DE LAB
-  // ===========================
-  await Promise.all([
-    prisma.catalogoExamen.upsert({
-      where: { nombre: "Hemograma Completo" },
-      update: {},
-      create: {
-        nombre: "Hemograma Completo",
-        tipo_muestra: "Sangre EDTA",
-        precio: 80,
-      },
-    }),
-    prisma.catalogoExamen.upsert({
-      where: { nombre: "Bioquímica Sérica" },
-      update: {},
-      create: {
-        nombre: "Bioquímica Sérica",
-        tipo_muestra: "Suero",
-        precio: 120,
-      },
-    }),
-    prisma.catalogoExamen.upsert({
-      where: { nombre: "Urianálisis" },
-      update: {},
-      create: { nombre: "Urianálisis", tipo_muestra: "Orina", precio: 60 },
-    }),
-    prisma.catalogoExamen.upsert({
-      where: { nombre: "Radiografía Digital" },
-      update: {},
-      create: {
-        nombre: "Radiografía Digital",
-        tipo_muestra: "N/A (Imagen)",
-        precio: 150,
-      },
-    }),
-    prisma.catalogoExamen.upsert({
-      where: { nombre: "Ecografía Abdominal" },
-      update: {},
-      create: {
-        nombre: "Ecografía Abdominal",
-        tipo_muestra: "N/A (Imagen)",
-        precio: 200,
-      },
-    }),
-    prisma.catalogoExamen.upsert({
-      where: { nombre: "Coprologico" },
-      update: {},
-      create: { nombre: "Coprologico", tipo_muestra: "Heces", precio: 50 },
-    }),
-  ]);
-  console.log("✅ Catálogo de exámenes creado");
-
-  // ===========================
   // CONSULTORIOS
   // ===========================
   await Promise.all([
@@ -548,7 +479,8 @@ async function main() {
   // ===========================
   // PRODUCTOS / INVENTARIO
   // ===========================
-  await Promise.all([
+  if ((await prisma.producto.count()) === 0) {
+    await Promise.all([
     prisma.producto.create({
       data: {
         nombre: "Amoxicilina 250mg",
@@ -629,13 +561,17 @@ async function main() {
         stock_minimo: 3,
       },
     }),
-  ]);
-  console.log("✅ Productos de farmacia creados");
+    ]);
+    console.log("✅ Productos de inventario creados");
+  } else {
+    console.log("↪️  Productos ya existen — se omiten");
+  }
 
   // ===========================
   // PROVEEDORES
   // ===========================
-  await Promise.all([
+  if ((await prisma.proveedor.count()) === 0) {
+    await Promise.all([
     prisma.proveedor.create({
       data: {
         nombre_empresa: "Droguería INTI S.A.",
@@ -652,13 +588,17 @@ async function main() {
         telefono: "71234567",
       },
     }),
-  ]);
-  console.log("✅ Proveedores creados");
+    ]);
+    console.log("✅ Proveedores creados");
+  } else {
+    console.log("↪️  Proveedores ya existen — se omiten");
+  }
 
   // ===========================
   // MASCOTAS DE PRUEBA
   // ===========================
-  const razaLabrador = await prisma.raza.findFirst({
+  if ((await prisma.mascota.count()) === 0) {
+    const razaLabrador = await prisma.raza.findFirst({
     where: { nombre: "Labrador Retriever" },
   });
   const razaPersa = await prisma.raza.findFirst({
@@ -719,7 +659,10 @@ async function main() {
     },
   });
 
-  console.log("✅ Mascotas de prueba creadas");
+    console.log("✅ Mascotas de prueba creadas");
+  } else {
+    console.log("↪️  Mascotas de prueba ya existen — se omiten");
+  }
 
   console.log("\n🎉 Seed completado exitosamente!");
   console.log("\n📋 Credenciales de acceso:");
@@ -728,7 +671,6 @@ async function main() {
   console.log("   Veterinario:  paola.rios@vetcare.com    / vet123");
   console.log("   Recepción:    maria.gomez@vetcare.com   / recep123");
   console.log("   Cajero:       luis.roca@vetcare.com     / caja123");
-  console.log("   Farmacia:     jose.silva@vetcare.com    / farma123");
 }
 
 main()

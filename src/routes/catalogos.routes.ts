@@ -8,8 +8,9 @@ router.get("/razas", catalogoController.getRazas);
 router.get("/colores", catalogoController.getColores);
 router.get("/alergias", catalogoController.getAlergias);
 router.get("/servicios", catalogoController.getServicios);
-router.get("/examenes", catalogoController.getExamenes);
 router.get("/categorias", catalogoController.getCategorias);
 router.get("/roles", catalogoController.getRoles);
+router.get("/veterinarios", catalogoController.getVeterinarios);
+router.get("/propietarios", catalogoController.getPropietarios);
 
 export default router;

@@ -112,6 +112,54 @@ export class UsuariosService {
   }
 
   /**
+   * Cambia la contraseña del PROPIO usuario autenticado.
+   * Verifica la contraseña actual, exige que la nueva cumpla la política
+   * reforzada y que sea distinta de la actual. Limpia debe_cambiar_password.
+   */
+  async changeOwnPassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+  ) {
+    const user = await this.prisma.usuario.findUnique({
+      where: { id: userId },
+    });
+    if (!user) throw { status: 404, message: "Usuario no encontrado" };
+
+    const actualOk = await this.passwordService.compare(
+      currentPassword || "",
+      user.password_hash,
+    );
+    if (!actualOk) {
+      throw { status: 400, message: "La contraseña actual es incorrecta" };
+    }
+
+    try {
+      this.passwordService.validateStrong(newPassword);
+    } catch (e: any) {
+      throw { status: 400, message: e?.message || "Contraseña no válida" };
+    }
+
+    const esIgual = await this.passwordService.compare(
+      newPassword,
+      user.password_hash,
+    );
+    if (esIgual) {
+      throw {
+        status: 400,
+        message: "La nueva contraseña debe ser diferente de la actual",
+      };
+    }
+
+    const password_hash = await this.passwordService.hash(newPassword);
+    await this.prisma.usuario.update({
+      where: { id: userId },
+      data: { password_hash, debe_cambiar_password: false },
+    });
+    return { ok: true };
+  }
+
+  /**
    * Busca un propietario (cliente) por email o lo crea si no existe.
    * ÚNICA fuente de verdad para la creación de usuarios con rol CLIENTE.
    * Utilizado por mascotaService para evitar duplicar lógica de creación de usuarios.
@@ -145,8 +193,9 @@ export class UsuariosService {
         rawPassword = data.password;
         debeCambiar = false;
       } else {
-        // NUNCA usar el CI (es semi-público). Default genérico + obligar cambio.
-        rawPassword = "cliente123";
+        // NUNCA usar el CI (es semi-público). Default simple para el primer
+        // ingreso + obligar cambio desde el perfil.
+        rawPassword = "123456";
         debeCambiar = true;
       }
       const hash = await this.passwordService.hash(rawPassword);

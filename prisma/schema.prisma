@@ -38,6 +38,10 @@ model Usuario {
   recibos            ReciboCaja[]
   citas              Cita[]
   salas_responsable  Consultorio[]   @relation("ResponsableSala")
+
+  historias_atendidas   HistoriaClinica[] @relation("HistoriaMedico")
+  historias_creadas     HistoriaClinica[] @relation("HistoriaCreadaPor")
+  historias_finalizadas HistoriaClinica[] @relation("HistoriaFinalizadaPor")
 }
 
 // ===========================
@@ -77,7 +81,9 @@ model CatalogoServicio {
   id          String          @id @default(uuid())
   nombre      String          @unique
   precio_base Decimal
+  activo      Boolean         @default(true)
   fichas      FichaAtencion[]
+  realizados  FichaServicio[]
 }
 
 // ===========================
@@ -101,9 +107,10 @@ model Mascota {
   propietario      Usuario       @relation(fields: [propietario_id], references: [id])
   created_at       DateTime      @default(now())
 
-  alergias PacienteAlergia[]
-  fichas   FichaAtencion[]
-  citas    Cita[]
+  alergias  PacienteAlergia[]
+  fichas    FichaAtencion[]
+  citas     Cita[]
+  historias HistoriaClinica[]
 }
 
 model PacienteAlergia {
@@ -169,33 +176,47 @@ model FichaAtencion {
   estado_cobro   EstadoCobro      @default(PENDIENTE)
   fecha_hora     DateTime         @default(now())
 
-  soap        RegistroSOAP?
-  ordenes_lab LaboratorioOrden[]
-  consumos    ConsumoConsulta[]
-  recibo      ReciboCaja?
+  soap                 RegistroSOAP?
+  consumos             ConsumoConsulta[]
+  servicios_realizados FichaServicio[]
+  recibo               ReciboCaja?
+  historia             HistoriaClinica?
 }
 
 model Cita {
-  id             String      @id @default(uuid())
+  id             String       @id @default(uuid())
   mascota_id     String
-  mascota        Mascota     @relation(fields: [mascota_id], references: [id])
+  mascota        Mascota      @relation(fields: [mascota_id], references: [id])
   doctor_id      String?
-  doctor         Usuario?    @relation(fields: [doctor_id], references: [id])
+  doctor         Usuario?     @relation(fields: [doctor_id], references: [id])
   consultorio_id String?
   consultorio    Consultorio? @relation(fields: [consultorio_id], references: [id])
   fecha_hora     DateTime
+  duracion_min   Int          @default(30)
+  tipo           TipoCita     @default(CONSULTA)
   motivo         String
   notas          String?
-  estado         EstadoCita  @default(PROGRAMADA)
-  created_at     DateTime    @default(now())
+  estado         EstadoCita   @default(PROGRAMADA)
+  recordatorio_enviado Boolean  @default(false)
+  created_at     DateTime     @default(now())
 }
 
 enum EstadoCita {
+  SOLICITADA
   PROGRAMADA
   CONFIRMADA
   COMPLETADA
   CANCELADA
   NO_ASISTIO
+}
+
+enum TipoCita {
+  CONSULTA
+  CONTROL
+  VACUNACION
+  CIRUGIA
+  PELUQUERIA
+  OTRO
 }
 
 enum EstadoFicha {
@@ -234,12 +255,10 @@ model RegistroSOAP {
   diagnostico    String?
   tratamiento    String?
   created_at     DateTime      @default(now())
-
-  receta RecetaMedica?
 }
 
 // ===========================
-// FARMACIA
+// PRODUCTOS E INVENTARIO
 // ===========================
 
 model CategoriaProducto {
@@ -266,10 +285,9 @@ model Producto {
   stock_actual Int                @default(0)
   stock_minimo Int                @default(5)
 
-  detalles_receta DetalleReceta[]
-  kardex          KardexMovimiento[]
-  detalles_cobro  DetalleCobro[]
-  consumos        ConsumoConsulta[]
+  kardex         KardexMovimiento[]
+  detalles_cobro DetalleCobro[]
+  consumos       ConsumoConsulta[]
 }
 
 // ===========================
@@ -286,31 +304,18 @@ model ConsumoConsulta {
   created_at  DateTime      @default(now())
 }
 
-model RecetaMedica {
-  id              String          @id @default(uuid())
-  soap_id         String          @unique
-  soap            RegistroSOAP    @relation(fields: [soap_id], references: [id], onDelete: Cascade)
-  indicaciones    String?
-  estado_entrega  EntregaReceta   @default(PENDIENTE)
-  created_at      DateTime        @default(now())
-
-  detalles DetalleReceta[]
-}
-
-enum EntregaReceta {
-  PENDIENTE
-  ENTREGADO
-  PARCIAL
-}
-
-model DetalleReceta {
-  id            String       @id @default(uuid())
-  receta_id     String
-  receta        RecetaMedica @relation(fields: [receta_id], references: [id], onDelete: Cascade)
-  producto_id   String
-  producto      Producto     @relation(fields: [producto_id], references: [id])
-  cantidad      Int
-  instrucciones String?
+// Servicios realizados durante la consulta (seleccionados por el veterinario).
+// El precio se "congela" al momento de agregarlo, para no alterar cobros previos
+// si luego cambia la tarifa del catálogo.
+model FichaServicio {
+  id          String           @id @default(uuid())
+  ficha_id    String
+  ficha       FichaAtencion    @relation(fields: [ficha_id], references: [id], onDelete: Cascade)
+  servicio_id String
+  servicio    CatalogoServicio @relation(fields: [servicio_id], references: [id])
+  precio      Decimal
+  cantidad    Int              @default(1)
+  created_at  DateTime         @default(now())
 }
 
 // ===========================
@@ -362,49 +367,6 @@ enum TipoMovimiento {
 }
 
 // ===========================
-// LABORATORIO
-// ===========================
-
-model CatalogoExamen {
-  id           String             @id @default(uuid())
-  nombre       String             @unique
-  tipo_muestra String?
-  precio       Decimal
-  ordenes      LaboratorioOrden[]
-}
-
-model LaboratorioOrden {
-  id         String         @id @default(uuid())
-  cod_orden  String         @unique
-  ficha_id   String
-  ficha      FichaAtencion  @relation(fields: [ficha_id], references: [id])
-  examen_id  String
-  examen     CatalogoExamen @relation(fields: [examen_id], references: [id])
-  estado     EstadoExamen   @default(SOLICITADO)
-  prioridad  Prioridad      @default(NORMAL)
-  created_at DateTime       @default(now())
-
-  resultado      LaboratorioResultado?
-  detalles_cobro DetalleCobro[]
-}
-
-enum EstadoExamen {
-  SOLICITADO
-  EN_PROCESO
-  FINALIZADO
-}
-
-model LaboratorioResultado {
-  id              String           @id @default(uuid())
-  orden_id        String           @unique
-  orden           LaboratorioOrden @relation(fields: [orden_id], references: [id], onDelete: Cascade)
-  hallazgos       String?
-  observaciones   String?
-  archivo_url     String?
-  fecha_procesado DateTime         @default(now())
-}
-
-// ===========================
 // CAJA Y FACTURACIÓN
 // ===========================
 
@@ -416,22 +378,22 @@ model PuntoCaja {
 }
 
 model ReciboCaja {
-  id               String       @id @default(uuid())
-  num_recibo       String       @unique
-  ficha_id         String?      @unique
+  id               String         @id @default(uuid())
+  num_recibo       String         @unique
+  ficha_id         String?        @unique
   ficha            FichaAtencion? @relation(fields: [ficha_id], references: [id])
   cajero_id        String
-  cajero           Usuario      @relation(fields: [cajero_id], references: [id])
-  nombre_cliente   String?      // Para ventas directas sin ficha
+  cajero           Usuario        @relation(fields: [cajero_id], references: [id])
+  nombre_cliente   String? // Para ventas directas sin ficha
   punto_caja_id    String?
-  punto_caja       PuntoCaja?   @relation(fields: [punto_caja_id], references: [id])
+  punto_caja       PuntoCaja?     @relation(fields: [punto_caja_id], references: [id])
   total            Decimal
-  metodo_pago      MetodoPago   @default(EFECTIVO)
+  metodo_pago      MetodoPago     @default(EFECTIVO)
   monto_recibido   Decimal?
   cambio_devuelto  Decimal?
-  estado           EstadoRecibo @default(EMITIDO)
+  estado           EstadoRecibo   @default(EMITIDO)
   motivo_anulacion String?
-  fecha_pago       DateTime     @default(now())
+  fecha_pago       DateTime       @default(now())
 
   detalles DetalleCobro[]
 }
@@ -449,23 +411,100 @@ enum EstadoRecibo {
 }
 
 model DetalleCobro {
-  id           String           @id @default(uuid())
-  recibo_id    String
-  recibo       ReciboCaja       @relation(fields: [recibo_id], references: [id], onDelete: Cascade)
-  tipo         TipoDetalleCobro
-  descripcion  String
-  precio_unit  Decimal
-  cantidad     Int              @default(1)
-  subtotal     Decimal
-  orden_lab_id String?
-  orden_lab    LaboratorioOrden? @relation(fields: [orden_lab_id], references: [id])
-  producto_id  String?
-  producto     Producto?        @relation(fields: [producto_id], references: [id])
+  id          String           @id @default(uuid())
+  recibo_id   String
+  recibo      ReciboCaja       @relation(fields: [recibo_id], references: [id], onDelete: Cascade)
+  tipo        TipoDetalleCobro
+  descripcion String
+  precio_unit Decimal
+  cantidad    Int              @default(1)
+  subtotal    Decimal
+  producto_id String?
+  producto    Producto?        @relation(fields: [producto_id], references: [id])
 }
 
 enum TipoDetalleCobro {
   SERVICIO
-  LABORATORIO
   FARMACIA
   SUMINISTRO
+}
+
+// ===========================
+// HISTORIA CLÍNICA (ficha de consulta externa)
+// ===========================
+
+enum EstadoHistoria {
+  BORRADOR
+  FINALIZADA
+}
+
+model HistoriaClinica {
+  id    String   @id @default(uuid())
+  folio Int      @unique @default(autoincrement())
+  fecha DateTime @default(now())
+
+  mascota_id      String
+  mascota         Mascota        @relation(fields: [mascota_id], references: [id])
+  ficha_id        String?        @unique
+  ficha           FichaAtencion? @relation(fields: [ficha_id], references: [id])
+  atendido_por_id String?
+  atendido_por    Usuario?       @relation("HistoriaMedico", fields: [atendido_por_id], references: [id])
+
+  // Snapshot del propietario (la ficha de papel pide estos datos)
+  propietario_nombre String?
+  domicilio          String?
+  telefono           String?
+  celular            String?
+
+  // Datos del paciente para ESTA consulta (cambian con el tiempo)
+  edad String?
+  peso Decimal?
+
+  // Anamnesis
+  motivo_consulta        String?
+  vacunas                String[] @default([])
+  vacunas_otras          String?
+  desparasitacion        Boolean  @default(false)
+  desparasitacion_cuando String?
+  enfermedades_previas   String?
+  intervenciones_previas String?
+
+  // Examen físico
+  estado_general           String?
+  apetito                  String?
+  hidratacion              String?
+  mucosa                   String?
+  ap_digestivo             String?
+  ap_genitourinario        String?
+  ap_respiratorio          String?
+  temperatura              Decimal?
+  fc                       Int?
+  fr                       Int?
+  observacion_clinica      String?
+  pruebas_complementarias  String?
+  diagnostico_presuntivo   String?
+  diagnostico_confirmativo String?
+  pronostico               String?
+  tratamiento              String?
+
+  estado EstadoHistoria @default(BORRADOR)
+
+  // Auditoría
+  created_by_id   String?
+  created_by      Usuario?  @relation("HistoriaCreadaPor", fields: [created_by_id], references: [id])
+  created_at      DateTime  @default(now())
+  finalized_by_id String?
+  finalized_by    Usuario?  @relation("HistoriaFinalizadaPor", fields: [finalized_by_id], references: [id])
+  finalized_at    DateTime?
+  updated_at      DateTime  @updatedAt
+
+  evoluciones EvolucionTratamiento[]
+}
+
+model EvolucionTratamiento {
+  id          String          @id @default(uuid())
+  historia_id String
+  historia    HistoriaClinica @relation(fields: [historia_id], references: [id], onDelete: Cascade)
+  fecha       DateTime        @default(now())
+  descripcion String
 }

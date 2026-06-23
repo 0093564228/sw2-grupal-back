@@ -54,16 +54,6 @@ export class CatalogoService {
     }
   }
 
-  async getExamenes() {
-    try {
-      return await this.prisma.catalogoExamen.findMany({
-        orderBy: { nombre: "asc" },
-      });
-    } catch (err) {
-      throw { status: 500, message: "Error al obtener los exámenes" };
-    }
-  }
-
   async getCategorias() {
     try {
       return await this.prisma.categoriaProducto.findMany({
@@ -79,6 +69,54 @@ export class CatalogoService {
       return await this.prisma.role.findMany({ orderBy: { nombre: "asc" } });
     } catch (err) {
       throw { status: 500, message: "Error al obtener los roles" };
+    }
+  }
+
+  /** Lista pública (para usuarios logueados) de veterinarios activos para asignación. */
+  async getVeterinarios() {
+    try {
+      return await this.prisma.usuario.findMany({
+        where: { rol: { nombre: "VETERINARIO" }, activo: true },
+        select: { id: true, nombre: true },
+        orderBy: { nombre: "asc" },
+      });
+    } catch (err) {
+      throw { status: 500, message: "Error al obtener los veterinarios" };
+    }
+  }
+
+  /**
+   * Búsqueda de propietarios (usuarios rol CLIENTE) para que recepción/clínica
+   * pueda asociar mascotas sin requerir el endpoint /usuarios (solo-admin).
+   */
+  async getPropietarios(search?: string) {
+    try {
+      return await this.prisma.usuario.findMany({
+        where: {
+          rol: { nombre: "CLIENTE" },
+          ...(search
+            ? {
+                OR: [
+                  { nombre: { contains: search, mode: "insensitive" } },
+                  { ci: { contains: search, mode: "insensitive" } },
+                  { email: { contains: search, mode: "insensitive" } },
+                  { telefono: { contains: search, mode: "insensitive" } },
+                ],
+              }
+            : {}),
+        },
+        select: {
+          id: true,
+          nombre: true,
+          email: true,
+          telefono: true,
+          ci: true,
+        },
+        orderBy: { nombre: "asc" },
+        take: 20,
+      });
+    } catch (err) {
+      throw { status: 500, message: "Error al obtener los propietarios" };
     }
   }
 }

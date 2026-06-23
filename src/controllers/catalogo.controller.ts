@@ -50,14 +50,6 @@ export class CatalogoController {
     }
   };
 
-  getExamenes = async (req: Request, res: Response) => {
-    try {
-      res.json(await this.catalogoService.getExamenes());
-    } catch (err) {
-      this.errors.e500(req, res, err);
-    }
-  };
-
   getCategorias = async (req: Request, res: Response) => {
     try {
       res.json(await this.catalogoService.getCategorias());
@@ -69,6 +61,26 @@ export class CatalogoController {
   getRoles = async (req: Request, res: Response) => {
     try {
       res.json(await this.catalogoService.getRoles());
+    } catch (err) {
+      this.errors.e500(req, res, err);
+    }
+  };
+
+  getVeterinarios = async (req: Request, res: Response) => {
+    try {
+      res.json(await this.catalogoService.getVeterinarios());
+    } catch (err) {
+      this.errors.e500(req, res, err);
+    }
+  };
+
+  getPropietarios = async (req: Request, res: Response) => {
+    try {
+      res.json(
+        await this.catalogoService.getPropietarios(
+          req.query.search as string | undefined,
+        ),
+      );
     } catch (err) {
       this.errors.e500(req, res, err);
     }

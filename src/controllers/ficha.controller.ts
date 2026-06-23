@@ -118,18 +118,6 @@ export class FichaController {
     }
   };
 
-  createReceta = async (req: Request, res: Response) => {
-    try {
-      const receta = await this.fichaService.createReceta(
-        req.params.id as string,
-        req.body,
-      );
-      res.status(201).json(receta);
-    } catch (err) {
-      this.errors.e500(req, res, err);
-    }
-  };
-
   getConsumos = async (req: Request, res: Response) => {
     try {
       const consumos = await this.fichaService.getConsumos(
@@ -156,6 +144,42 @@ export class FichaController {
   removeConsumo = async (req: Request, res: Response) => {
     try {
       await this.fichaService.removeConsumo(req.params.consumoId as string);
+      res.json({ ok: true });
+    } catch (err) {
+      this.errors.e500(req, res, err);
+    }
+  };
+
+  getServiciosRealizados = async (req: Request, res: Response) => {
+    try {
+      res.json(
+        await this.fichaService.getServiciosRealizados(req.params.id as string),
+      );
+    } catch (err) {
+      this.errors.e500(req, res, err);
+    }
+  };
+
+  addServicioRealizado = async (req: Request, res: Response) => {
+    try {
+      res
+        .status(201)
+        .json(
+          await this.fichaService.addServicioRealizado(
+            req.params.id as string,
+            req.body,
+          ),
+        );
+    } catch (err) {
+      this.errors.e500(req, res, err);
+    }
+  };
+
+  removeServicioRealizado = async (req: Request, res: Response) => {
+    try {
+      await this.fichaService.removeServicioRealizado(
+        req.params.servicioId as string,
+      );
       res.json({ ok: true });
     } catch (err) {
       this.errors.e500(req, res, err);

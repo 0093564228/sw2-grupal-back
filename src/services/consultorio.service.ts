@@ -62,7 +62,7 @@ export class ConsultorioService {
         | "SALA_ESPERA"
         | "OTRO";
       estado?: "LIBRE" | "OCUPADO" | "LIMPIEZA";
-      responsable_id?: string;
+      responsable_id?: string | null;
     },
   ) {
     try {
